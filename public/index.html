@@ -57,9 +57,9 @@
         <div class="section-head"><div><p class="eyebrow">ACCESS CONTROL</p><h2>User management</h2></div><button id="userRefresh" class="ghost">Refresh users</button></div>
         <form id="userForm" class="user-form"><label>Username<input id="userName" required pattern="[a-zA-Z0-9._-]{2,40}"></label><label>Password<input id="userPassword" type="password" minlength="8" required></label><label>Projects<select id="userProjects" multiple></select></label><label>Capabilities<select id="userCapabilities" multiple></select></label><button type="submit">Create user</button></form>
         <div id="userList" class="user-list"></div>
-        <div class="section-head account-heading"><div><p class="eyebrow">OPENAI CREDENTIALS</p><h2>API key accounts</h2></div></div>
-        <form id="openaiAccountForm" class="user-form account-form"><label>Nama akun<input id="openaiAccountName" maxlength="60" placeholder="Contoh: OpenAI Production" required></label><label>OpenAI API key<input id="openaiApiKey" type="password" autocomplete="off" placeholder="sk-..." required></label><button type="submit">Tambah akun</button></form>
-        <div id="openaiAccountList" class="user-list"></div>
+        <div class="section-head account-heading"><div><p class="eyebrow">AI PROVIDERS</p><h2>Provider & model</h2></div></div>
+        <form id="aiProviderForm" class="user-form account-form"><label>Provider<select id="aiProviderType"><option value="openai">OpenAI</option><option value="zyrouter">ZyRouter</option></select></label><label>Nama credential<input id="aiProviderName" maxlength="60" placeholder="Contoh: ZyRouter Mifta" required></label><label>API key<input id="aiProviderKey" type="password" autocomplete="off" required></label><label>Model (pisahkan koma)<input id="aiProviderModels" placeholder="gpt-5,gpt-5-mini" required></label><label id="aiBaseUrlLabel">Base URL<input id="aiProviderBaseUrl" value="https://api.zyrouter.com/v1"></label><button type="submit">Tambah provider</button></form>
+        <div id="aiProviderList" class="user-list"></div>
       </section>
       <footer id="activity"><span><i class="pulse"></i> Automatic refresh every 15 seconds</span><span>Ruang Server v1.0</span></footer>
     </main>
@@ -71,7 +71,7 @@
   <div id="terminalModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="terminalTitle">
     <div class="terminal-window">
       <div class="terminal-bar"><div><span class="term-dot red"></span><span class="term-dot yellow"></span><span class="term-dot green"></span></div><div><b id="terminalTitle">Terminal</b><small id="terminalCwd"></small></div><button id="terminalClose" aria-label="Tutup">×</button></div>
-      <div class="terminal-mode"><button id="shellMode" class="active">PowerShell</button><button id="codexMode">Codex Full Access</button><label id="openaiAccountPicker" class="account-picker hidden">Akun<select id="openaiAccountSelect"><option value="server">Login Codex server</option></select></label><span id="terminalModeInfo">Perintah dijalankan dari folder proyek.</span></div>
+      <div class="terminal-mode"><button id="shellMode" class="active">PowerShell</button><button id="codexMode">Codex Full Access</button><label id="aiProviderPicker" class="account-picker hidden">Provider<select id="aiProviderSelect"><option value="server">Login Codex server</option></select></label><label id="aiModelPicker" class="account-picker hidden">Model<select id="aiModelSelect"></select></label><span id="terminalModeInfo">Perintah dijalankan dari folder proyek.</span></div>
       <pre id="terminalOutput"><span class="term-welcome">Ruang Server CLI — PowerShell per project
 Ketik perintah lalu tekan Enter. Shift+Enter untuk baris baru.
 
@@ -80,6 +80,7 @@ Ketik perintah lalu tekan Enter. Shift+Enter untuk baris baru.
     </div>
   </div>
   <script src="/app.js"></script>
+  <script src="/ai.js"></script>
   <script src="/metrics.js"></script>
 </body>
 </html>

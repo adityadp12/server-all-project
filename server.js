@@ -59,6 +59,16 @@ function decryptSecret(value) {
 function configuredOpenAIAccounts() { return Array.isArray(config.openaiAccounts) ? config.openaiAccounts : []; }
 function publicOpenAIAccount(account) { return { id: account.id, name: account.name, keyHint: account.keyHint }; }
 
+function configuredAIProviders() { return Array.isArray(config.aiProviders) ? config.aiProviders : []; }
+function publicAIProvider(item) { return { id: item.id, provider: item.provider, name: item.name, keyHint: item.keyHint, baseUrl: item.baseUrl, models: item.models || [] }; }
+function resolveAIProvider(id) {
+  if (!id || id === 'server') return null;
+  const item = configuredAIProviders().find(entry => entry.id === id);
+  if (!item) throw new Error('Provider AI tidak ditemukan.');
+  const model = item.models?.[0];
+  return { ...item, apiKey: decryptSecret(item.apiKey), model };
+}
+
 function resolveOpenAIAccount(id) {
   if (!id || id === 'server') return null;
   const account = configuredOpenAIAccounts().find(item => item.id === id);
@@ -448,18 +458,25 @@ async function executeCodex(project, prompt) {
   }
 }
 
-function startCodexJob(project, prompt, session, promptId, accountId) {
+function startCodexJob(project, prompt, session, promptId, providerId, model) {
   if (typeof prompt !== 'string' || !prompt.trim()) throw new Error('Instruksi Codex tidak boleh kosong.');
   const entry = 'C:\\Users\\admin\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js';
   if (!fs.existsSync(entry)) throw new Error('Codex CLI tidak ditemukan pada server.');
-  const account = resolveOpenAIAccount(accountId);
+  const provider = resolveAIProvider(providerId);
   const id = crypto.randomBytes(18).toString('hex');
   const projectScoped = !hasCapability(session, 'codex-full-access');
   const job = { id, project: project.id, user: session.user, status: 'running', output: '', code: null, prompt: prompt.trim(), startedAt: new Date().toISOString(), finishedAt: null, child: null, projectScoped };
   const accessArgs = projectScoped ? ['--sandbox', 'workspace-write'] : ['--dangerously-bypass-approvals-and-sandbox'];
-  const args = [entry, 'exec', ...accessArgs, '--skip-git-repo-check', '--color', 'never', '-C', project.folder, prompt];
+  const args = [entry, 'exec', ...accessArgs, '--skip-git-repo-check', '--color', 'never', '-C', project.folder];
+  if (provider) {
+    const selectedModel = String(model || provider.models?.[0] || '').trim();
+    if (!selectedModel || !(provider.models || []).includes(selectedModel)) throw new Error('Model AI tidak valid untuk provider tersebut.');
+    const envKey = provider.provider === 'zyrouter' ? 'ZYROUTER_API_KEY' : 'OPENAI_API_KEY';
+    args.push('--config', 'model_provider="dashboard_api"', '--config', `model_providers.dashboard_api.name=${JSON.stringify(provider.name)}`, '--config', `model_providers.dashboard_api.base_url=${JSON.stringify(provider.baseUrl)}`, '--config', `model_providers.dashboard_api.env_key=${JSON.stringify(envKey)}`, '--config', 'model_providers.dashboard_api.wire_api="responses"', '--model', selectedModel);
+  }
+  args.push(prompt);
   const childEnv = { ...process.env, CODEX_HOME: 'D:\\CodexData' };
-  if (account) childEnv.OPENAI_API_KEY = account.apiKey;
+  if (provider) childEnv[provider.provider === 'zyrouter' ? 'ZYROUTER_API_KEY' : 'OPENAI_API_KEY'] = provider.apiKey;
   const child = spawn('C:\\Program Files\\nodejs\\node.exe', args, { cwd: project.folder, windowsHide: true, env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
   job.child = child; codexJobs.set(id, job); persistCodexHistory(job);
   const append = chunk => { const text = chunk.toString('utf8'); job.output += text; appendCodexHistory(job.id, text); };
@@ -563,6 +580,35 @@ const server = http.createServer(async (req, res) => {
       if (!(hasCapability(session, 'codex-full-access') || hasCapability(session, 'codex-project-write'))) return json(res, 403, { error: 'Akses Codex tidak diizinkan.' });
       return json(res, 200, { accounts: configuredOpenAIAccounts().map(publicOpenAIAccount), canManage: hasCapability(session, 'user-management') });
     }
+    if (url.pathname === '/api/ai-providers' && req.method === 'GET') {
+      const session = getSession(req); if (!session) return json(res, 401, { error: 'Unauthorized' });
+      if (!(hasCapability(session, 'codex-full-access') || hasCapability(session, 'codex-project-write'))) return json(res, 403, { error: 'Akses Codex tidak diizinkan.' });
+      return json(res, 200, { providers: configuredAIProviders().map(publicAIProvider), canManage: hasCapability(session, 'user-management') });
+    }
+    if (url.pathname === '/api/ai-providers' && req.method === 'POST') {
+      const session = getSession(req); if (!session) return json(res, 401, { error: 'Unauthorized' });
+      if (!safeEqual(req.headers['x-csrf-token'] || '', session.csrf)) return json(res, 403, { error: 'CSRF tidak valid' });
+      if (!requireUserManagement(res, session)) return;
+      try {
+        const body = await readBody(req); const provider = String(body.provider || '').trim(); const name = String(body.name || '').trim(); const apiKey = String(body.apiKey || '').trim();
+        const models = [...new Set((Array.isArray(body.models) ? body.models : String(body.models || '').split(',')).map(x => String(x).trim()).filter(Boolean))];
+        if (!['openai', 'zyrouter'].includes(provider)) throw new Error('Provider harus OpenAI atau ZyRouter.');
+        if (name.length < 2 || name.length > 60) throw new Error('Nama provider harus 2-60 karakter.');
+        if (apiKey.length < 20) throw new Error('API key tidak valid.');
+        if (!models.length || models.some(model => !/^[A-Za-z0-9._:-]{1,100}$/.test(model))) throw new Error('Minimal satu model valid wajib diisi.');
+        const baseUrl = provider === 'zyrouter' ? String(body.baseUrl || 'https://api.zyrouter.com/v1').replace(/\/+$/, '') : 'https://api.openai.com/v1';
+        const item = { id: crypto.randomBytes(12).toString('hex'), provider, name, baseUrl, models, keyHint: `...${apiKey.slice(-4)}`, apiKey: encryptSecret(apiKey) };
+        config.aiProviders = [...configuredAIProviders(), item]; saveConfig(); audit(session.user, 'ai-provider-create', item.id, 'success'); return json(res, 201, { ok: true, provider: publicAIProvider(item) });
+      } catch (error) { return json(res, 400, { error: error.message }); }
+    }
+    const aiProviderMatch = url.pathname.match(/^\/api\/ai-providers\/([a-f0-9]{24})$/);
+    if (aiProviderMatch && req.method === 'DELETE') {
+      const session = getSession(req); if (!session) return json(res, 401, { error: 'Unauthorized' });
+      if (!safeEqual(req.headers['x-csrf-token'] || '', session.csrf)) return json(res, 403, { error: 'CSRF tidak valid' });
+      if (!requireUserManagement(res, session)) return;
+      const items = configuredAIProviders(); const index = items.findIndex(item => item.id === aiProviderMatch[1]); if (index < 0) return json(res, 404, { error: 'Provider AI tidak ditemukan.' });
+      items.splice(index, 1); config.aiProviders = items; saveConfig(); audit(session.user, 'ai-provider-delete', aiProviderMatch[1], 'success'); return json(res, 200, { ok: true });
+    }
     if (url.pathname === '/api/openai-accounts' && req.method === 'POST') {
       const session = getSession(req); if (!session) return json(res, 401, { error: 'Unauthorized' });
       if (!safeEqual(req.headers['x-csrf-token'] || '', session.csrf)) return json(res, 403, { error: 'CSRF tidak valid' });
@@ -643,7 +689,7 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       if (body.fullAccess !== true) return json(res, 400, { error: 'Konfirmasi Full Access diperlukan.' });
       const promptId = crypto.createHash('sha256').update(String(body.prompt || '')).digest('hex').slice(0, 12);
-      try { const job = startCodexJob(project, body.prompt, session, promptId, body.accountId); return json(res, 202, publicJob(job)); }
+      try { const job = startCodexJob(project, body.prompt, session, promptId, body.providerId, body.model); return json(res, 202, publicJob(job)); }
       catch (error) { audit(session.user, 'codex-full-access', project.id, `failed; prompt=${promptId}`); return json(res, 400, { error: error.message }); }
     }
     if (req.method === 'GET' && url.pathname === '/api/codex-history') {
@@ -682,7 +728,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
       const file = path.join(ROOT, 'public', 'index.html'); res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return fs.createReadStream(file).pipe(res);
     }
-    if (req.method === 'GET' && ['/app.css', '/terminal.css', '/metrics.css', '/users.css', '/history.css', '/app.js', '/metrics.js'].includes(url.pathname)) {
+    if (req.method === 'GET' && ['/app.css', '/terminal.css', '/metrics.css', '/users.css', '/history.css', '/app.js', '/ai.js', '/metrics.js'].includes(url.pathname)) {
       const file = path.join(ROOT, 'public', url.pathname); const type = url.pathname.endsWith('.css') ? 'text/css' : 'application/javascript';
       res.writeHead(200, { 'Content-Type': `${type}; charset=utf-8`, 'Cache-Control': 'no-cache' }); return fs.createReadStream(file).pipe(res);
     }

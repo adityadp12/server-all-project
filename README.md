@@ -14,6 +14,14 @@ Dashboard monitoring dan management untuk domain yang dilayani oleh Caddy pada R
 ## Alamat
 
 - Publik: `https://server.ruangiman.my.id`
+
+## AI providers untuk Codex
+
+Dashboard mendukung pemilihan provider dan model sebelum menjalankan Codex. Buka bagian **User management → AI providers** untuk menambahkan credential OpenAI atau ZyRouter. API key disimpan terenkripsi menggunakan `sessionSecret`, dan hanya petunjuk empat karakter terakhir yang ditampilkan.
+
+Setiap provider dapat memiliki beberapa model (dipisahkan koma). Provider dan model yang dipilih di terminal Codex dikirim ke Codex melalui konfigurasi provider Responses API; API key tidak pernah dikirim ke browser atau dicatat di log.
+
+Endpoint pengelolaan: `GET/POST /api/ai-providers` dan `DELETE /api/ai-providers/:id`. Semua perubahan membutuhkan sesi login, CSRF token, dan capability `user-management`.
 - Lokal: `http://127.0.0.1:8094`
 
 ## Operasional

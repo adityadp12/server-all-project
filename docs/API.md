@@ -27,3 +27,8 @@ memerlukan session cookie. POST/PATCH/DELETE memerlukan `x-csrf-token`.
 ID project berasal dari registry; ID history/job berupa 36 karakter hexadecimal.
 Error authorization memakai 401/403, resource 404, validasi 400, dan error lifecycle
 umumnya 500. Detail implementasi harus tetap mengikuti route di `server.js`.
+# AI providers
+
+`GET /api/ai-providers` mengembalikan daftar provider yang tersedia tanpa API key. `POST /api/ai-providers` menerima `provider` (`openai` atau `zyrouter`), `name`, `apiKey`, `models` (array atau koma), dan optional `baseUrl`. `DELETE /api/ai-providers/:id` menghapus credential. Endpoint mutasi membutuhkan CSRF token dan capability `user-management`.
+
+Saat menjalankan Codex, request dapat menyertakan `providerId` dan `model` pada endpoint project Codex. Credential didekripsi hanya di server process.
