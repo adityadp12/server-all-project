@@ -585,6 +585,20 @@ const server = http.createServer(async (req, res) => {
       if (!(hasCapability(session, 'codex-full-access') || hasCapability(session, 'codex-project-write'))) return json(res, 403, { error: 'Akses Codex tidak diizinkan.' });
       return json(res, 200, { providers: configuredAIProviders().map(publicAIProvider), canManage: hasCapability(session, 'user-management') });
     }
+    const aiModelsMatch = url.pathname.match(/^\/api\/ai-providers\/([a-f0-9]{24})\/models$/);
+    if (aiModelsMatch && req.method === 'GET') {
+      const session = getSession(req); if (!session) return json(res, 401, { error: 'Unauthorized' });
+      if (!(hasCapability(session, 'codex-full-access') || hasCapability(session, 'codex-project-write'))) return json(res, 403, { error: 'Akses Codex tidak diizinkan.' });
+      const provider = configuredAIProviders().find(item => item.id === aiModelsMatch[1]);
+      if (!provider) return json(res, 404, { error: 'Provider AI tidak ditemukan.' });
+      if (provider.provider !== 'zyrouter') return json(res, 200, { models: provider.models || [] });
+      try {
+        const response = await fetch(`${provider.baseUrl.replace(/\/+$/, '')}/models`, { headers: { Authorization: `Bearer ${decryptSecret(provider.apiKey)}` } });
+        if (!response.ok) throw new Error(`ZyRouter mengembalikan HTTP ${response.status}.`);
+        const payload = await response.json(); const models = Array.isArray(payload.data) ? payload.data.map(item => item.id).filter(Boolean).sort() : [];
+        return json(res, 200, { models });
+      } catch (error) { return json(res, 502, { error: `Gagal mengambil daftar model ZyRouter: ${error.message}` }); }
+    }
     if (url.pathname === '/api/ai-providers' && req.method === 'POST') {
       const session = getSession(req); if (!session) return json(res, 401, { error: 'Unauthorized' });
       if (!safeEqual(req.headers['x-csrf-token'] || '', session.csrf)) return json(res, 403, { error: 'CSRF tidak valid' });

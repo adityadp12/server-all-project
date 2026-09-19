@@ -21,6 +21,8 @@ Dashboard mendukung pemilihan provider dan model sebelum menjalankan Codex. Buka
 
 Setiap provider dapat memiliki beberapa model (dipisahkan koma). Provider dan model yang dipilih di terminal Codex dikirim ke Codex melalui konfigurasi provider Responses API; API key tidak pernah dikirim ke browser atau dicatat di log.
 
+Untuk provider ZyRouter, daftar model pada terminal diambil langsung dari endpoint `/v1/models` menggunakan credential server, sehingga pilihan model tetap mengikuti katalog terbaru. Terminal juga memiliki layout responsif khusus untuk layar ponsel.
+
 Endpoint pengelolaan: `GET/POST /api/ai-providers` dan `DELETE /api/ai-providers/:id`. Semua perubahan membutuhkan sesi login, CSRF token, dan capability `user-management`.
 - Lokal: `http://127.0.0.1:8094`
 

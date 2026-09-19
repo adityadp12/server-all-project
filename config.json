@@ -28,5 +28,22 @@
         "codex-project-write"
       ]
     }
+  ],
+  "aiProviders": [
+    {
+      "id": "e3737083db98bf80e3568e1f",
+      "provider": "zyrouter",
+      "name": "Zyrouter -Aditya",
+      "baseUrl": "https://api.zyrouter.com/v1",
+      "models": [
+        "gpt-5.6-luna"
+      ],
+      "keyHint": "...GMuI",
+      "apiKey": {
+        "iv": "X/GIVWQwbLJXR8JN",
+        "tag": "/v7mB7bAxM/ch9eZE30ggQ==",
+        "data": "5r0X9ATG7RELB/h1tLF+0guSMXgX9cATbpw2+F97mYGifg6Ddiyt1PeqawRkwVMyjzU="
+      }
+    }
   ]
 }
