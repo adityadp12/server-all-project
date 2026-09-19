@@ -757,7 +757,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
       const file = path.join(ROOT, 'public', 'index.html'); res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return fs.createReadStream(file).pipe(res);
     }
-    if (req.method === 'GET' && ['/app.css', '/terminal.css', '/metrics.css', '/users.css', '/history.css', '/app.js', '/ai.js', '/metrics.js'].includes(url.pathname)) {
+    if (req.method === 'GET' && ['/app.css', '/terminal.css', '/metrics.css', '/users.css', '/history.css', '/history-toggle.css', '/app.js', '/ai.js', '/history-toggle.js', '/metrics.js'].includes(url.pathname)) {
       const file = path.join(ROOT, 'public', url.pathname); const type = url.pathname.endsWith('.css') ? 'text/css' : 'application/javascript';
       res.writeHead(200, { 'Content-Type': `${type}; charset=utf-8`, 'Cache-Control': 'no-cache' }); return fs.createReadStream(file).pipe(res);
     }
