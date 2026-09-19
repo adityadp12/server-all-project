@@ -69,6 +69,23 @@ function resolveAIProvider(id) {
   return { ...item, apiKey: decryptSecret(item.apiKey), model };
 }
 
+const providerModelCache = new Map();
+async function availableProviderModels(provider) {
+  if (provider.provider !== 'zyrouter') return provider.models || [];
+  const cached = providerModelCache.get(provider.id);
+  if (cached && Date.now() - cached.at < 5 * 60_000) return cached.models;
+  const response = await fetch(`${provider.baseUrl.replace(/\/+$/, '')}/models`, {
+    headers: { Authorization: `Bearer ${provider.apiKey || decryptSecret(provider.apiKey)}` },
+    signal: AbortSignal.timeout(15_000)
+  });
+  if (!response.ok) throw new Error(`ZyRouter mengembalikan HTTP ${response.status}.`);
+  const payload = await response.json();
+  const models = Array.isArray(payload.data) ? [...new Set(payload.data.map(item => String(item.id || '').trim()).filter(Boolean))].sort() : [];
+  if (!models.length) throw new Error('ZyRouter tidak mengembalikan daftar model.');
+  providerModelCache.set(provider.id, { at: Date.now(), models });
+  return models;
+}
+
 function resolveOpenAIAccount(id) {
   if (!id || id === 'server') return null;
   const account = configuredOpenAIAccounts().find(item => item.id === id);
@@ -458,7 +475,7 @@ async function executeCodex(project, prompt) {
   }
 }
 
-function startCodexJob(project, prompt, session, promptId, providerId, model) {
+async function startCodexJob(project, prompt, session, promptId, providerId, model) {
   if (typeof prompt !== 'string' || !prompt.trim()) throw new Error('Instruksi Codex tidak boleh kosong.');
   const entry = 'C:\\Users\\admin\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js';
   if (!fs.existsSync(entry)) throw new Error('Codex CLI tidak ditemukan pada server.');
@@ -469,8 +486,9 @@ function startCodexJob(project, prompt, session, promptId, providerId, model) {
   const accessArgs = projectScoped ? ['--sandbox', 'workspace-write'] : ['--dangerously-bypass-approvals-and-sandbox'];
   const args = [entry, 'exec', ...accessArgs, '--skip-git-repo-check', '--color', 'never', '-C', project.folder];
   if (provider) {
-    const selectedModel = String(model || provider.models?.[0] || '').trim();
-    if (!selectedModel || !(provider.models || []).includes(selectedModel)) throw new Error('Model AI tidak valid untuk provider tersebut.');
+    const availableModels = await availableProviderModels(provider);
+    const selectedModel = String(model || availableModels[0] || '').trim();
+    if (!selectedModel || !availableModels.includes(selectedModel)) throw new Error('Model AI tidak valid untuk provider tersebut. Muat ulang daftar model lalu coba lagi.');
     const envKey = provider.provider === 'zyrouter' ? 'ZYROUTER_API_KEY' : 'OPENAI_API_KEY';
     args.push('--config', 'model_provider="dashboard_api"', '--config', `model_providers.dashboard_api.name=${JSON.stringify(provider.name)}`, '--config', `model_providers.dashboard_api.base_url=${JSON.stringify(provider.baseUrl)}`, '--config', `model_providers.dashboard_api.env_key=${JSON.stringify(envKey)}`, '--config', 'model_providers.dashboard_api.wire_api="responses"', '--model', selectedModel);
   }
@@ -593,10 +611,7 @@ const server = http.createServer(async (req, res) => {
       if (!provider) return json(res, 404, { error: 'Provider AI tidak ditemukan.' });
       if (provider.provider !== 'zyrouter') return json(res, 200, { models: provider.models || [] });
       try {
-        const response = await fetch(`${provider.baseUrl.replace(/\/+$/, '')}/models`, { headers: { Authorization: `Bearer ${decryptSecret(provider.apiKey)}` } });
-        if (!response.ok) throw new Error(`ZyRouter mengembalikan HTTP ${response.status}.`);
-        const payload = await response.json(); const models = Array.isArray(payload.data) ? payload.data.map(item => item.id).filter(Boolean).sort() : [];
-        return json(res, 200, { models });
+        return json(res, 200, { models: await availableProviderModels({ ...provider, apiKey: decryptSecret(provider.apiKey) }) });
       } catch (error) { return json(res, 502, { error: `Gagal mengambil daftar model ZyRouter: ${error.message}` }); }
     }
     if (url.pathname === '/api/ai-providers' && req.method === 'POST') {
@@ -703,7 +718,7 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       if (body.fullAccess !== true) return json(res, 400, { error: 'Konfirmasi Full Access diperlukan.' });
       const promptId = crypto.createHash('sha256').update(String(body.prompt || '')).digest('hex').slice(0, 12);
-      try { const job = startCodexJob(project, body.prompt, session, promptId, body.providerId, body.model); return json(res, 202, publicJob(job)); }
+      try { const job = await startCodexJob(project, body.prompt, session, promptId, body.providerId, body.model); return json(res, 202, publicJob(job)); }
       catch (error) { audit(session.user, 'codex-full-access', project.id, `failed; prompt=${promptId}`); return json(res, 400, { error: error.message }); }
     }
     if (req.method === 'GET' && url.pathname === '/api/codex-history') {
