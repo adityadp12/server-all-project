@@ -1,0 +1,32 @@
+{
+  "sessionSecret": "e1e4627cea56c5f91547963394453c41ecc386cb57491dd42188428922d5d332",
+  "users": [
+    {
+      "username": "admin",
+      "passwordSalt": "e76787444e15f6becf415ad2191dd708",
+      "passwordHash": "14d2e962f2ec333a7b1ec0e0039ecfe8a1e3df92c2451ea21d5d3b8ca56f6d89cf4db84bdca51c933a41e38314318a6109725e3ce63740678103ad1b9c6c86e1",
+      "projects": "*",
+      "capabilities": [
+        "status",
+        "metrics",
+        "service",
+        "terminal",
+        "codex-full-access",
+        "user-management"
+      ]
+    },
+    {
+      "username": "mifta",
+      "passwordSalt": "c027f127bda69548cd6752fdefddb236",
+      "passwordHash": "c53bfdb44ce600ea75c70732f175d55f2c4dd25fc7f42e9827c9fd4819014ebba8c0b0cb3e1d7046d675214e4340bcb6d86b6d253788608d3f2f3254a0ee7a79",
+      "projects": [
+        "remote-codex"
+      ],
+      "capabilities": [
+        "status",
+        "metrics",
+        "codex-project-write"
+      ]
+    }
+  ]
+}

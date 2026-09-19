@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.*
+!.env.example
+logs/
+state/
+initial-password.txt
+mifta-credentials.txt
+*.log
