@@ -18,6 +18,14 @@ function request(path, method = 'GET', body = null, cookie = '', extraHeaders = 
   const status = await request('/api/status', 'GET', null, cookie);
   if (status.status !== 200 || status.body.projects.length !== 7) throw new Error(`status ${status.status}`);
   const headers = { 'x-csrf-token': login.body.csrf };
+  const providers = await request('/api/ai-providers', 'GET', null, cookie);
+  if (providers.status !== 200 || !Array.isArray(providers.body.providers)) throw new Error(`AI providers ${providers.status}`);
+  if (process.env.MODEL_TEST === '1') {
+    const zyrouter = providers.body.providers.find(item => item.provider === 'zyrouter');
+    if (!zyrouter) throw new Error('ZyRouter provider tidak ditemukan');
+    const models = await request(`/api/ai-providers/${zyrouter.id}/models`, 'GET', null, cookie);
+    if (models.status !== 200 || !Array.isArray(models.body.models) || !models.body.models.length) throw new Error(`ZyRouter models ${models.status}`);
+  }
   const terminal = await request('/api/projects/cloudtrade/terminal', 'POST', { command: '(Get-Location).Path' }, cookie, headers);
   if (terminal.status !== 200 || !terminal.body.stdout.includes('CloudTrade')) throw new Error(`terminal ${terminal.status}`);
   const codexGuard = await request('/api/projects/cloudtrade/codex', 'POST', { prompt: 'test', fullAccess: false }, cookie, headers);
